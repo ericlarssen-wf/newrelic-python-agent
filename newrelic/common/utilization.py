@@ -161,7 +161,43 @@ class AWSUtilization(CommonUtilization):
     EXPECTED_KEYS = ('availabilityZone', 'instanceId', 'instanceType')
     METADATA_HOST = '169.254.169.254'
     METADATA_PATH = '/2016-09-02/dynamic/instance-identity/document'
+    TOKEN_PATH = '/latest/api/token'
+    TOKEN_HEADERS = {'x-aws-ec2-metadata-token-ttl-seconds': '21600'}
     VENDOR_NAME = 'aws'
+
+    @classmethod
+    def fetch(cls):
+        token = cls._fetch_metadata_token()
+        try:
+            with cls.CLIENT_CLS(cls.METADATA_HOST,
+                                timeout=cls.FETCH_TIMEOUT) as client:
+                resp = client.send_request(method='GET',
+                                           path=cls.METADATA_PATH,
+                                           params=cls.METADATA_QUERY,
+                                           headers=cls.HEADERS)
+            if not 200 <= resp[0] < 300:
+                raise ValueError(resp[0])
+            return resp[1]
+        except Exception as e:
+            _logger.debug('Unable to fetch %s data from %s%s: %r',
+                    cls.VENDOR_NAME, cls.METADATA_HOST, cls.METADATA_PATH, e)
+            return None
+
+    @classmethod
+    def _fetch_metadata_token(cls):
+        try:
+            with cls.CLIENT_CLS(cls.METADATA_HOST,
+                                timeout=cls.FETCH_TIMEOUT) as client:
+                resp = client.send_request(method='PUT',
+                                           path=cls.TOKEN_PATH,
+                                           headers=cls.TOKEN_HEADERS)
+            if not 200 <= resp[0] < 300:
+                raise ValueError(resp[0])
+            return resp[1]
+        except Exception as e:
+            _logger.debug('Unable to fetch %s token from %s%s: %r',
+                    cls.VENDOR_NAME, cls.METADATA_HOST, cls.TOKEN_PATH, e)
+            return None
 
 
 class AzureUtilization(CommonUtilization):
